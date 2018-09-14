@@ -1,0 +1,415 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+                      "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="en">
+<head>
+    <meta http-equiv="content-type" content="text/html; charset=utf-8" />
+    <meta name="author" content="hamster-applet" />
+    <link rel="stylesheet" type="text/css" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.3.3/semantic.min.css">
+    <script
+        src="https://code.jquery.com/jquery-3.1.1.min.js"
+        integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+        crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.22.2/moment.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.3.3/semantic.min.js"></script>
+
+
+    <title>$title</title>
+
+    <style>
+        html {
+            min-height: 100%;
+        }
+        body {
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            padding-top: 120px;
+        }
+        a {
+            color: #330000;
+        }
+        a:hover {
+            color: #000;
+        }
+        table.chart {
+            border-collapse:collapse;
+            margin-bottom: 2em;
+        }
+
+        td.bar_col {
+            width: 100px;
+        }
+
+        .bar {
+            background-color: #7B8ED7;
+            border-top-right-radius: 3px;
+            border-bottom-right-radius: 3px;
+            color: #fff;
+            height: 100%;
+        }
+
+        #date_chart {
+            width: 100%;
+            height: 100px;
+        }
+
+        #date_chart table {
+            width: 100%;
+            height: 90%;
+            border-collapse: collapse;
+            margin-bottom: 4px;
+        }
+
+        #date_chart table tr {vertical-align: bottom;}
+        #date_chart table td {
+            padding: 0;
+            padding-right: 1px;
+        }
+
+        #date_chart .bar {
+            width: 100%;
+            background-color: #ccc;
+            border-radius: 0;
+            border-top-left-radius: 2px;
+            border-top-right-radius: 2px;
+        }
+
+        footer {
+            background: #aaa;
+            color: #fff;
+            padding: 1rem;
+            text-align: center;
+        }
+    </style>
+
+    <script type="text/javascript">
+        var facts = $facts;
+
+        function showChart(target, data) {
+            totals = []
+            // turn object into a list of tuples and convert durations from seconds to hours
+            var max_duration = 0;
+            for (var key in data) {
+                var duration = data[key] / 60 / 60.0;
+                totals.push([key, duration]); // hours
+
+                max_duration = Math.max(max_duration, duration);
+            }
+
+            // sort by duration descending
+            totals.sort(function compare(a,b) {return b[1] - a[1]})
+
+            // create the HTML
+            var table = $("<table class='chart ui table' style='width:100%' />")
+            for (var i=0; i < totals.length; i++) {
+                var total = totals[i];
+
+                var row = $("<tr />");
+                var label = $("<td />");
+
+                label.text(total[0]);
+                row.append(label);
+
+
+                // var duration = Math.round(total[1] * 10) / 10; // round to one decimal
+                var duration_label = $("<td />");
+
+                var duration = total[1];
+                duration_text =moment.utc(moment.duration(duration * 60 * 60, "seconds").asMilliseconds()).format('HH:mm:ss');
+                duration_label.text(duration_text);
+                row.append(duration_label);
+
+
+                var bar_col = $("<td class='bar_col' />");
+                var bar = $("<div class='bar'>&nbsp;</div>");
+                bar.width(total[1] / max_duration * 100);
+                bar_col.append(bar);
+                row.append(bar_col);
+
+                table.append(row);
+            }
+
+            target.append(table);
+
+        }
+
+        $(document).ready(function() {
+            var categoryTotals = {};
+            var activityTotals = {};
+            var tagTotals = {};
+            var dateTotals = {}
+
+            function add(list, key, value) {
+                list[key] = list[key] || 0;
+                list[key] += value;
+            }
+
+            var grandTotal = 0;
+            for (var i=0; i < facts.length; i++) {
+                var fact = facts[i];
+
+                add(dateTotals, fact.date, fact.delta)
+                add(categoryTotals, fact.category, fact.delta)
+                add(activityTotals, fact.activity, fact.delta)
+
+                for (var j=0; j < fact.tags.length; j++) {
+                    if(fact.tags[j]) {
+                        add(tagTotals, fact.tags[j], fact.delta)
+                    }
+                }
+
+                grandTotal += fact.delta;
+            }
+
+            grandTotal = Math.round(grandTotal / 60 / 60 * 10) / 10;
+            $("#grand_total").text("(" + grandTotal + ")");
+
+
+
+            showChart($("#category_chart"), categoryTotals)
+            showChart($("#activity_chart"), activityTotals)
+            showChart($("#tag_chart"), tagTotals)
+
+
+            // create the by-day chart
+            var startDate = $start_date;
+            var endDate = $end_date;
+
+            var dates = [];
+            var dateMax = 0;
+            for (var i=startDate; i <= endDate; i += 24 * 60 * 60) {
+                var duration = dateTotals[i] || 0;
+                dateMax = Math.max(dateMax, duration);
+                dates.push([new Date(i*1000), duration])
+            }
+
+            var table = $("<table />")
+            var row = $("<tr />");
+            for (var i=0; i<dates.length; i++) {
+                var date = dates[i];
+                var col = $("<td />");
+
+                var bar = $("<div class='bar'>&nbsp;</div>");
+                var bar_height = date[1] / dateMax * 70;
+                if (bar_height < 1)
+                    bar.height(1);
+                else
+                    bar.height(bar_height)
+
+                col.append(bar);
+                row.append(col);
+            }
+            table.append(row);
+            var row2 = $("<tr />");
+            for (var i=0; i<dates.length; i++) {
+                var date = dates[i];
+                var col = $("<td />", {'data-date': date[0], 'data-duration': date[1]}).text(moment(date[0]).format('MMM DD')).css('text-align', 'center');
+                row2.append(col);
+            }
+            table.append(row2);
+            $("#date_chart").append(table);
+
+
+
+            $("#activity_log_link").click(function() {
+                $("#activity_log").toggle()
+            })
+
+            $("#show_details").click(function() {
+                if ($(this).attr("checked")) {
+                    $(".by_date_row").show();
+                } else {
+                    $(".by_date_row").hide();
+                }
+
+            })
+
+            $("#show_totals").click(function() {
+                if ($(this).attr("checked")) {
+                    $(".by_date_total_row").show();
+                } else {
+                    $(".by_date_total_row").hide();
+                }
+
+
+            })
+
+            populateFactTable();
+
+
+            $(".by_day_controls input").click(function(){
+                populateFactTable();
+            });
+        });
+
+
+        function populateFactTable() {
+            // fill fact rows
+            var table = $("#date_facts");
+            table.empty();
+
+            var dateFacts = $date_facts;
+
+            // determine if we will be doing any internal counting
+            var keys = [];
+            if ($("#show_activities").is(":checked"))
+                keys.push("activity");
+
+            if ($("#show_categories").is(":checked"))
+                keys.push("category");
+
+            if ($("#show_tags").is(":checked"))
+                keys.push("tags");
+
+
+
+            for (var i in dateFacts) {
+                var dateString = dateFacts[i][0];
+                var dateTotal = 0;
+
+                var factTotals = {}
+                for (var j in dateFacts[i][1]) {
+                    var fact = dateFacts[i][1][j];
+                    fact.tags = fact.tags.join(", ");
+
+                    if (keys.length > 0) {
+                        var key = [];
+                        for (var k in keys) {
+                            key.push(fact[keys[k]])
+                        }
+
+                        key = key.join(" - ");
+                        factTotals[key] = factTotals[key] || 0;
+                        factTotals[key] += fact.delta;
+                    }
+
+
+                    dateTotal += fact.delta;
+                }
+
+                // dateTotal = Math.round(dateTotal / 60 * 10) / 10;
+                dateTotal = dateTotal === 0 ? '--' : moment.utc(moment.duration(dateTotal, "seconds").asMilliseconds()).format('HH:mm:ss');
+                table.append("<tr class=\"positive\"><td><b>" + dateString + "</b></td><td><b>" + dateTotal +"</b></td></tr>");
+
+                for (var key in factTotals) {
+                    keyTotal = Math.round(factTotals[key]);
+                    keyTotal = keyTotal === 0 ? '--' : moment.utc(moment.duration(keyTotal, "seconds").asMilliseconds()).format('HH:mm:ss');
+                    table.append("<tr><td>" + key + "</td><td>" + keyTotal +"</td></tr>");
+                }
+
+
+            }
+        }
+    </script>
+</head>
+<body>
+    <div class="ui top fixed menu">
+        <div class="item">
+            <img src="https://www.abidibo.net/static/core/src/img/abidibo.6fec3387c64f.png">
+        </div>
+        <span class="item">$title <span id="grand_total"></span></span>
+    </div>
+
+    <div id="date_chart"></div>
+
+    <div class="ui container" style="flex: 1;">
+        <div class="ui segment piled" style="margin-top: 2rem;">
+            <div class="ui pointing secondary menu tab-menu">
+                <a class="item active" data-tab="first">$activity_log_title</a>
+                <a class="item" data-tab="second">$totals_by_day_title</a>
+                <a class="item" data-tab="third">Categories</a>
+                <a class="item" data-tab="fourth">Activities</a>
+                <a class="item" data-tab="fifth">Tags</a>
+            </div>
+            <div class="ui tab active" data-tab="first">
+                <div id="activity_log">
+                    <h2>$activity_log_title</h2>
+                    <table class="ui celled table">
+                        <thead>
+                            <tr>
+                                <th>$header_date</th>
+                                <th>$header_activity</th>
+                                <th>$header_category</th>
+                                <th>$header_tags</th>
+                                <th>$header_start</th>
+                                <th>$header_end</th>
+                                <th>$header_duration</th>
+                                <th>$header_description</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        <all_activities>
+                            <tr>
+                                <td style="white-space: nowrap">
+                                    <!-- there is also date_iso -->
+                                    $date
+                                </td>
+                                <td>$activity</td>
+                                <td>$category</td>
+                                <td>$tags</td>
+                                <td>
+                                    <!-- there is also start_iso -->
+                                    $start
+                                </td>
+                                <td>
+                                    <!-- there is also end_iso -->
+                                    $end
+                                </td>
+                                <td>
+                                    <!-- there is also duration_decimal and duration_minutes -->
+                                    $duration
+                                </td>
+                                <td>$description</td>
+                            </tr>
+                        </all_activities>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="ui tab" data-tab="second">
+                <div class="by_day_controls">
+                    $show_prompt
+                    <div class="ui checkbox">
+                        <input type="checkbox" id="show_activities" checked="checked"></input>
+                        <label for="show_details">$activity_totals_heading</label>
+                    </div>
+                    <div class="ui checkbox">
+                        <input type="checkbox" id="show_categories" checked="checked"></input>
+                        <label for="show_totals">$category_totals_heading</label>
+                    </div>
+                    <div class="ui checkbox">
+                        <input type="checkbox" id="show_tags" checked="checked"></input>
+                        <label for="show_totals">$tag_totals_heading</label>
+                    </div>
+                </div>
+                <table class="ui celled table" id="date_facts"></table>
+            </div>
+            <div class="ui tab" data-tab="third">
+                <div>
+                    <div id="category_chart"></div>
+                </div>
+            </div>
+            <div class="ui tab" data-tab="fourth">
+                <div>
+                    <div id="activity_chart"></div>
+                </div>
+            </div>
+            <div class="ui tab" data-tab="fifth">
+                <div>
+                    <div id="tag_chart"></div>
+                </div>
+            </div>
+            <script>
+                $('.tab-menu .item').tab();
+            </script>
+        </div>
+    </div>
+    <footer>
+        <p class="template-instructions">
+            Custom <a href="https://github.com/abidibo/hamster-report-template">template</a> powered by <a href="https://www.abidibo.net">abidibo</a><br />
+            <i>$template_instructions.</i>
+        </p>
+    </footer>
+</body>
+</html>
