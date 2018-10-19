@@ -116,7 +116,7 @@
                 var duration_label = $("<td />");
 
                 var duration = total[1];
-                duration_text =moment.utc(moment.duration(duration * 60 * 60, "seconds").asMilliseconds()).format('HH:mm:ss');
+                duration_text = duration * 60 * 60 > 86400 ? moment.utc(moment.duration(duration * 60 * 60, "seconds").asMilliseconds()).format('D\\d HH:mm:ss') : moment.utc(moment.duration(duration * 60 * 60, "seconds").asMilliseconds()).format('HH:mm:ss');
                 duration_label.text(duration_text);
                 row.append(duration_label);
 
@@ -294,7 +294,12 @@
 
                 for (var key in factTotals) {
                     keyTotal = Math.round(factTotals[key]);
-                    keyTotal = keyTotal === 0 ? '--' : moment.utc(moment.duration(keyTotal, "seconds").asMilliseconds()).format('HH:mm:ss');
+                    console.log(key, keyTotal)
+                    keyTotal = keyTotal === 0
+                      ? '--'
+                      : (keyTotal > 86400
+                        ? moment.utc(moment.duration(keyTotal, "seconds").asMilliseconds()).format('DD HH:mm:ss')
+                        : moment.utc(moment.duration(keyTotal, "seconds").asMilliseconds()).format('HH:mm:ss'));
                     table.append("<tr><td>" + key + "</td><td>" + keyTotal +"</td></tr>");
                 }
 
